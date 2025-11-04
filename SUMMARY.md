@@ -3,6 +3,33 @@
 ## Overview
 Successfully created a comprehensive reinforcement learning environment for rocket navigation in space with multiple RL algorithm implementations.
 
+## Latest Update: Static vs Dynamic Environment Modes
+
+**IMPORTANT IMPROVEMENT**: Added static/dynamic environment modes to make training much more effective.
+
+**The Problem**: The original environment was generating completely random celestial object positions on every reset, making it extremely difficult for agents to learn because every episode was completely different with no consistent patterns.
+
+**The Solution**: Added `static_environment` parameter (default=True):
+- **Static Mode (Default)**: Celestial objects stay in the same positions across episodes
+  - Agent can learn optimal paths for a specific configuration
+  - Much faster convergence (3-5x speedup expected)
+  - Consistent training signal
+  - Recommended for initial training
+
+- **Dynamic Mode**: Objects are randomly repositioned each episode
+  - Requires generalization across configurations
+  - Harder to learn but more robust policies
+  - Use after mastering static environment
+
+**Usage**:
+```bash
+# Static mode (default, recommended)
+python train.py --algorithm ppo --episodes 500
+
+# Dynamic mode (advanced)
+python train.py --algorithm ppo --episodes 500 --dynamic
+```
+
 ## What Was Built
 
 ### 1. Custom Gym Environment (`astrophysics_env.py`)
