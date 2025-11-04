@@ -33,6 +33,37 @@ This project implements a complex RL environment where a rocket must navigate fr
 - Out of fuel: -2 per step
 - Landing on valid planet: 0 (terminal, success)
 
+### Environment Modes: Static vs Dynamic
+
+The environment supports two modes to control how celestial objects are positioned:
+
+**Static Environment (Default, Recommended for Training)**
+- Celestial objects remain in the **same positions** across all episodes
+- Agent can learn optimal paths for a specific configuration
+- **Much easier to learn** - consistent training signal
+- Faster convergence and better sample efficiency
+- Ideal for initial training and algorithm development
+
+```python
+env = AstrophysicsEnv(seed=42, static_environment=True)  # Default
+```
+
+**Dynamic Environment (Advanced, For Generalization)**
+- Celestial objects are **randomly repositioned** on each reset
+- Agent must learn general navigation strategies
+- **Much harder to learn** - inconsistent challenges each episode
+- More robust and generalizable policies
+- Use after agent masters static environment
+
+```python
+env = AstrophysicsEnv(seed=42, static_environment=False)
+```
+
+**Recommended Training Strategy:**
+1. Train on static environment first (500-1000 episodes)
+2. Fine-tune on dynamic environment for generalization (500+ episodes)
+3. This curriculum learning approach provides both fast initial learning and robustness
+
 ### Implemented RL Algorithms
 
 1. **Q-Learning with Discretization**
@@ -74,7 +105,7 @@ pip install -r requirements.txt
 
 ### Training
 
-Train a single algorithm:
+Train a single algorithm (static environment - recommended):
 ```bash
 # Q-Learning
 python train.py --algorithm qlearning --episodes 500
@@ -82,13 +113,23 @@ python train.py --algorithm qlearning --episodes 500
 # DQN
 python train.py --algorithm dqn --episodes 500
 
-# PPO
+# PPO (recommended - best performance)
 python train.py --algorithm ppo --episodes 500
+```
+
+Train with dynamic environment (harder, more generalizable):
+```bash
+python train.py --algorithm ppo --episodes 500 --dynamic
 ```
 
 Train all algorithms:
 ```bash
 python train.py --algorithm all --episodes 500 --plot
+```
+
+Test the difference between static and dynamic:
+```bash
+python test_static_vs_dynamic.py
 ```
 
 ### Evaluation

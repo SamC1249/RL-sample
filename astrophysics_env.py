@@ -76,12 +76,22 @@ class AstrophysicsEnv(gym.Env):
         - Reaching black hole center or hitting sun: -100
         - Landing on valid planet: 0 (terminal)
         - Out of fuel and drifting: -2 per step
+
+    Environment Modes:
+        - static_environment=True (default): Celestial objects remain in the same positions
+          across episodes. This makes learning much easier as the agent can learn optimal
+          paths for a specific configuration. Recommended for initial training.
+
+        - static_environment=False: Celestial objects are randomly repositioned on each reset.
+          This makes the task much harder but results in more generalizable policies.
+          Recommended after the agent has mastered a static configuration.
     """
 
     metadata = {'render_modes': ['human', 'rgb_array'], 'render_fps': 30}
 
     def __init__(self, grid_size: int = 1000, max_fuel: float = 500.0,
-                 max_steps: int = 2000, render_mode: Optional[str] = None, seed: Optional[int] = None):
+                 max_steps: int = 2000, render_mode: Optional[str] = None,
+                 seed: Optional[int] = None, static_environment: bool = True):
         super().__init__()
 
         self.grid_size = grid_size
@@ -89,6 +99,8 @@ class AstrophysicsEnv(gym.Env):
         self.max_steps = max_steps
         self.render_mode = render_mode
         self.seed_value = seed
+        self.static_environment = static_environment
+        self.environment_initialized = False
 
         # Earth position (center of grid)
         self.earth_pos = np.array([grid_size / 2, grid_size / 2], dtype=np.float32)
@@ -198,13 +210,31 @@ class AstrophysicsEnv(gym.Env):
         return rng.uniform(50, self.grid_size - 50, size=2)
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, dict]:
-        """Reset the environment to initial state"""
+        """
+        Reset the environment to initial state
+
+        Args:
+            seed: Random seed for environment generation
+            options: Additional options (can contain 'static_environment' to override)
+
+        Returns:
+            observation, info tuple
+        """
         if seed is not None:
             self.seed_value = seed
+            self.environment_initialized = False  # Force regeneration with new seed
             np.random.seed(seed)
 
-        # Generate celestial objects
-        self._generate_celestial_objects()
+        # Handle options
+        if options is not None and 'static_environment' in options:
+            self.static_environment = options['static_environment']
+
+        # Generate celestial objects only if:
+        # 1. First time (not initialized), OR
+        # 2. Dynamic environment mode (static_environment=False)
+        if not self.environment_initialized or not self.static_environment:
+            self._generate_celestial_objects()
+            self.environment_initialized = True
 
         # Reset rocket state (start at Earth)
         self.rocket_pos = self.earth_pos.copy()

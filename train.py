@@ -17,7 +17,7 @@ def create_directories():
     os.makedirs('results', exist_ok=True)
 
 
-def train_agent(algorithm: str, num_episodes: int = 500, seed: int = 42):
+def train_agent(algorithm: str, num_episodes: int = 500, seed: int = 42, dynamic: bool = False):
     """
     Train an agent using the specified algorithm
 
@@ -25,6 +25,8 @@ def train_agent(algorithm: str, num_episodes: int = 500, seed: int = 42):
         algorithm: One of 'qlearning', 'dqn', 'ppo'
         num_episodes: Number of training episodes
         seed: Random seed
+        dynamic: If True, use dynamic environment (celestial objects change each episode)
+                If False (default), use static environment (same layout each episode)
     """
     create_directories()
 
@@ -33,12 +35,18 @@ def train_agent(algorithm: str, num_episodes: int = 500, seed: int = 42):
     print(f"{'='*60}\n")
 
     # Create environment
+    # static_environment=True (default): Same layout each episode - easier to learn
+    # static_environment=False: Random layout each episode - more generalizable
     env = AstrophysicsEnv(
         grid_size=1000,
         max_fuel=500.0,
         max_steps=500,
-        seed=seed
+        seed=seed,
+        static_environment=not dynamic
     )
+
+    env_type = "Dynamic" if dynamic else "Static"
+    print(f"Environment Mode: {env_type}")
 
     if algorithm.lower() == 'qlearning':
         # Q-Learning with discretization
@@ -201,6 +209,9 @@ def main():
                        help='Number of training episodes (default: 500)')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed (default: 42)')
+    parser.add_argument('--dynamic', action='store_true',
+                       help='Use dynamic environment (celestial objects change each episode). '
+                            'Default is static environment (same layout each episode).')
     parser.add_argument('--plot', action='store_true',
                        help='Plot training results after training')
 
@@ -212,7 +223,7 @@ def main():
         algorithms = [args.algorithm]
 
     for algo in algorithms:
-        train_agent(algo, args.episodes, args.seed)
+        train_agent(algo, args.episodes, args.seed, args.dynamic)
         if args.plot:
             plot_training_results(algo)
 
