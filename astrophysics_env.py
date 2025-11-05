@@ -46,14 +46,14 @@ class BlackHole(CelestialObject):
 class Planet(CelestialObject):
     """Planet that can be landed on"""
     def __init__(self, x: float, y: float, can_land: bool):
-        super().__init__(x, y, radius=3.0, object_type='planet')
+        super().__init__(x, y, radius=5.0, object_type='planet')
         self.can_land = can_land
 
 
 class Asteroid(CelestialObject):
     """Asteroid obstacle"""
     def __init__(self, x: float, y: float):
-        super().__init__(x, y, radius=2.0, object_type='asteroid')
+        super().__init__(x, y, radius=1.0, object_type='asteroid')
 
 
 class AstrophysicsEnv(gym.Env):
@@ -89,7 +89,7 @@ class AstrophysicsEnv(gym.Env):
 
     metadata = {'render_modes': ['human', 'rgb_array'], 'render_fps': 30}
 
-    def __init__(self, grid_size: int = 1000, max_fuel: float = 500.0,
+    def __init__(self, grid_size: int = 500, max_fuel: float = 500.0,
                  max_steps: int = 2000, render_mode: Optional[str] = None,
                  seed: Optional[int] = None, static_environment: bool = True):
         super().__init__()
