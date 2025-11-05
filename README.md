@@ -134,7 +134,7 @@ python test_static_vs_dynamic.py
 
 ### Environment Visualization
 
-Visualize the environment grid with gravity fields (highly recommended!):
+**Static Environment View** - See the environment layout:
 ```bash
 # Full visualization with gravity fields
 python environment-test.py --seed 42
@@ -157,6 +157,25 @@ This will show you:
 - **Gravity Field**: Heat map showing gravitational force strength
 - **Combined View**: Objects overlaid on gravity field
 - **Statistics**: Environment configuration and object counts
+
+**Agent Performance Visualization** - See how your trained agent performs:
+```bash
+# Visualize 10 runs of trained PPO agent
+python run-visualization.py --algorithm ppo --runs 10
+
+# Visualize with specific model
+python run-visualization.py --algorithm dqn --model models/dqn_agent_final.pt --runs 20
+
+# Save visualization
+python run-visualization.py --algorithm ppo --runs 10 --save agent_performance.png
+```
+
+This will show you:
+- **Individual Trajectories**: Each run's path (color-coded by outcome)
+- **Average Trajectory**: Mean path with confidence bands
+- **Position Heatmap**: Where the agent spends most time
+- **Time Series**: Position, speed, fuel, and rewards over time
+- **Statistics**: Success rate, average reward, and per-run details
 
 ### Evaluation
 
@@ -215,7 +234,8 @@ RL-sample/
 ├── ppo_agent.py                 # PPO implementation
 ├── train.py                     # Training script
 ├── evaluate.py                  # Evaluation script
-├── environment-test.py          # Environment visualization tool (NEW!)
+├── environment-test.py          # Environment visualization tool
+├── run-visualization.py         # Agent performance visualization (NEW!)
 ├── test_environment.py          # Environment unit tests
 ├── test_static_vs_dynamic.py    # Static vs dynamic mode comparison
 ├── example_usage.py             # Usage examples
