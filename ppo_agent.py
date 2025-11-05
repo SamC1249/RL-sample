@@ -520,7 +520,7 @@ if __name__ == "__main__":
     agent = PPOAgent(
         state_dim=11,
         action_dim=2,
-        learning_rate=3e-4,
+        learning_rate=1e-4,
         discount_factor=0.99,
         gae_lambda=0.95,
         clip_epsilon=0.2,
@@ -536,7 +536,7 @@ if __name__ == "__main__":
         agent=agent,
         num_episodes=500,
         max_steps_per_episode=500,
-        update_interval=2048,
+        update_interval=500,
         save_path="models/ppo_agent"
     )
 

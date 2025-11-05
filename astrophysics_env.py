@@ -172,7 +172,7 @@ class AstrophysicsEnv(gym.Env):
             self.landable_planets.append(Planet(pos[0], pos[1], can_land=True))
 
         # Generate 120 non-landable planets
-        for _ in range(120):
+        for _ in range(40):
             pos = self._generate_valid_position(rng, min_distance_from_earth=50)
             self.non_landable_planets.append(Planet(pos[0], pos[1], can_land=False))
 

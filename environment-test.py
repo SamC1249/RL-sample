@@ -351,8 +351,6 @@ def main():
     # Create environment
     print(f"\nCreating environment with seed {args.seed}...")
     env = AstrophysicsEnv(
-        grid_size=1000,
-        max_fuel=500.0,
         seed=args.seed,
         static_environment=not args.dynamic
     )

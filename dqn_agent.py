@@ -353,7 +353,7 @@ if __name__ == "__main__":
     from astrophysics_env import AstrophysicsEnv
 
     # Create environment
-    env = AstrophysicsEnv(grid_size=1000, max_fuel=500.0, max_steps=500, seed=42)
+    env = AstrophysicsEnv(grid_size=500, max_fuel=500.0, max_steps=500, seed=42)
 
     # Create agent
     agent = DQNAgent(
