@@ -132,6 +132,32 @@ Test the difference between static and dynamic:
 python test_static_vs_dynamic.py
 ```
 
+### Environment Visualization
+
+Visualize the environment grid with gravity fields (highly recommended!):
+```bash
+# Full visualization with gravity fields
+python environment-test.py --seed 42
+
+# Fast visualization without gravity computation
+python environment-test.py --seed 42 --no-gravity
+
+# Higher resolution gravity field (slower)
+python environment-test.py --seed 42 --resolution 200
+
+# Save to file
+python environment-test.py --seed 42 --save environment_map.png
+
+# Try different random seeds to see different configurations
+python environment-test.py --seed 123
+```
+
+This will show you:
+- **Objects Map**: All celestial objects with color coding and influence zones
+- **Gravity Field**: Heat map showing gravitational force strength
+- **Combined View**: Objects overlaid on gravity field
+- **Statistics**: Environment configuration and object counts
+
 ### Evaluation
 
 Evaluate a trained agent:
@@ -183,16 +209,21 @@ env.close()
 
 ```
 RL-sample/
-├── astrophysics_env.py      # Custom Gym environment
-├── q_learning_agent.py       # Q-Learning implementation
-├── dqn_agent.py             # Deep Q-Network implementation
-├── ppo_agent.py             # PPO implementation
-├── train.py                 # Training script
-├── evaluate.py              # Evaluation script
-├── requirements.txt         # Python dependencies
-├── README.md               # This file
-├── models/                 # Saved models (created during training)
-└── results/                # Training results and plots (created during training)
+├── astrophysics_env.py          # Custom Gym environment
+├── q_learning_agent.py          # Q-Learning implementation
+├── dqn_agent.py                 # Deep Q-Network implementation
+├── ppo_agent.py                 # PPO implementation
+├── train.py                     # Training script
+├── evaluate.py                  # Evaluation script
+├── environment-test.py          # Environment visualization tool (NEW!)
+├── test_environment.py          # Environment unit tests
+├── test_static_vs_dynamic.py    # Static vs dynamic mode comparison
+├── example_usage.py             # Usage examples
+├── requirements.txt             # Python dependencies
+├── README.md                    # This file
+├── SUMMARY.md                   # Project summary
+├── models/                      # Saved models (created during training)
+└── results/                     # Training results and plots (created during training)
 ```
 
 ## Algorithm Details
