@@ -42,7 +42,7 @@ def main():
 
     # Run policy iteration
     print("\nRunning Policy Iteration...")
-    result = solver.solve(max_iterations=100, verbose=True)
+    result = solver.solve(max_iterations=1000, verbose=True)
 
     # Display results
     print("\n" + "=" * 80)
