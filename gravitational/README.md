@@ -122,10 +122,230 @@ python gravitational_env.py
 python visualize_gravity.py
 ```
 
+## Training and Testing Convergence
+
+### Quick Start
+
+For a guided interactive experience:
+
+```bash
+python quick_start.py
+```
+
+Or run all tests non-interactively:
+
+```bash
+python quick_start.py --all
+```
+
+### Training an Agent
+
+#### 1. Train DQN Agent
+
+```bash
+python train.py
+```
+
+This will:
+- Train a DQN agent for up to 2000 episodes (or until convergence)
+- Save checkpoints every 100 episodes to `checkpoints/dqn/`
+- Generate training progress plots
+- Track convergence metrics
+
+**Convergence Criteria:**
+- Success rate ≥ 70% over last 100 episodes
+- Minimum 500 episodes completed
+
+**Training Output:**
+- `checkpoints/dqn/checkpoint_epXXX.pt` - Periodic checkpoints
+- `checkpoints/dqn/final_model.pt` - Final trained model
+- `checkpoints/dqn/training_stats.json` - Training statistics
+- `checkpoints/dqn/training_progress.png` - 6-panel training visualization
+
+#### 2. Custom Training Parameters
+
+Edit `train.py` to customize:
+
+```python
+# Agent hyperparameters
+agent = DQNAgent(
+    state_dim=4,
+    n_directions=4,
+    n_thrust_levels=5,  # Discretization of thrust [0, 1]
+    hidden_dims=[128, 128],  # Network architecture
+    learning_rate=1e-3,
+    gamma=0.99,  # Discount factor
+    epsilon_start=1.0,  # Initial exploration
+    epsilon_end=0.01,  # Final exploration
+    epsilon_decay=0.995,  # Exploration decay rate
+    buffer_capacity=10000,  # Replay buffer size
+    batch_size=64
+)
+
+# Training parameters
+n_episodes = 2000  # Maximum episodes
+convergence_threshold = 0.7  # Success rate for convergence
+```
+
+#### 3. Train Different Agents
+
+Modify `agent_type` in `train.py`:
+
+```python
+agent_type = "dqn"       # Deep Q-Network (learns from experience)
+agent_type = "random"    # Random baseline (no learning)
+agent_type = "heuristic" # Rule-based baseline
+```
+
+### Evaluating Agents
+
+#### Compare All Agents
+
+```bash
+python evaluate.py
+```
+
+This will:
+- Evaluate all available agents (Random, Heuristic, DQN)
+- Run 100 test episodes per agent
+- Generate comparison plots
+- Visualize sample trajectories for each agent
+
+**Evaluation Output:**
+- `evaluation_results.json` - Detailed metrics
+- `agent_comparison.png` - Performance comparison plot
+- `trajectory_*.png` - Trajectory visualization for each agent
+
+#### Evaluation Metrics
+
+- **Success Rate**: Percentage of episodes reaching target planet
+- **Average Reward**: Mean cumulative reward per episode
+- **Average Length**: Mean episode duration (steps)
+- **Black Hole Rate**: Percentage of episodes ending in black hole
+
+### Monitoring Convergence
+
+The training script automatically tracks convergence through multiple metrics:
+
+#### 1. Success Rate
+Primary convergence indicator. Training converges when success rate ≥ 70% over 100 episodes.
+
+#### 2. Episode Rewards
+Shows learning progress. Should increase over time as agent improves.
+
+#### 3. Episode Length
+Successful agents often complete episodes faster (shorter paths to target).
+
+#### 4. Black Hole Death Rate
+Should decrease as agent learns to avoid the black hole.
+
+#### 5. Exploration Rate (Epsilon)
+Decays from 1.0 to 0.01, showing transition from exploration to exploitation.
+
+#### 6. Training Loss
+Should decrease and stabilize as Q-network converges.
+
+### Visualizing Training Progress
+
+The training script automatically generates a 6-panel visualization:
+
+1. **Episode Rewards** - Raw and moving average rewards
+2. **Success Rate** - Moving window success rate with 70% target line
+3. **Episode Length** - Steps per episode over time
+4. **Black Hole Rate** - Death rate over time
+5. **Training Loss** - Q-network loss
+6. **Epsilon** - Exploration rate decay
+
+```bash
+# View training progress
+open checkpoints/dqn/training_progress.png
+```
+
+### Expected Training Time
+
+On a typical CPU:
+- **Random Agent**: Instant (no training)
+- **Heuristic Agent**: Instant (rule-based)
+- **DQN Agent**: 10-30 minutes for convergence (500-1500 episodes)
+
+GPU acceleration significantly reduces training time.
+
+### Example Training Session
+
+```bash
+# Full training pipeline
+cd gravitational/
+
+# 1. Train DQN agent
+python train.py
+
+# Expected output:
+# ================================================================================
+# Episode 50/2000
+# ================================================================================
+#   Avg Reward (recent):          -45.32
+#   Avg Length (recent):           245.12
+#   Success Rate (recent):          12.00%
+#   Black Hole Rate (recent):       35.00%
+#   Current Epsilon:                 0.7788
+# ...
+# ================================================================================
+# CONVERGED at episode 1247!
+# Success rate: 72.45%
+# ================================================================================
+
+# 2. Evaluate trained agent
+python evaluate.py
+
+# Expected output:
+# ================================================================================
+# Comparing Agents
+# ================================================================================
+# Evaluating Random...
+#   Success Rate: 2.00%
+#   Avg Reward: -85.34 ± 45.23
+#
+# Evaluating Heuristic...
+#   Success Rate: 45.00%
+#   Avg Reward: -25.67 ± 30.12
+#
+# Evaluating DQN...
+#   Success Rate: 73.00%
+#   Avg Reward: -12.45 ± 15.34
+
+# 3. View results
+ls checkpoints/dqn/
+# checkpoint_ep100.pt  checkpoint_ep200.pt  ...  final_model.pt
+# training_progress.png  training_stats.json
+```
+
+### Troubleshooting
+
+**Issue: Training not converging**
+- Increase `n_episodes` to allow more training time
+- Adjust `epsilon_decay` to balance exploration/exploitation
+- Increase `n_thrust_levels` for finer thrust control
+- Try different `hidden_dims` network architectures
+
+**Issue: Agent consistently falls into black hole**
+- Check black hole position (50, 50) and event horizon (radius 5)
+- Heuristic agent should achieve ~45% success rate as baseline
+- DQN needs sufficient exploration to learn avoidance
+
+**Issue: Training is too slow**
+- Reduce `hidden_dims` (e.g., [64, 64])
+- Decrease `buffer_capacity` and `batch_size`
+- Reduce `max_steps` per episode
+- Use GPU acceleration with `device='cuda'`
+
 ## Files
 
 - `gravitational_env.py` - Main environment implementation
 - `visualize_gravity.py` - Gravity field visualization tools
+- `dqn_agent.py` - DQN agent and baseline agents (Random, Heuristic)
+- `train.py` - Training script with convergence tracking
+- `evaluate.py` - Evaluation and trajectory visualization
+- `quick_start.py` - Interactive quick start guide
 - `README.md` - This file
 
 ## Key Features
