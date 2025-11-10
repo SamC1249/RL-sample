@@ -35,6 +35,7 @@ class PolicyIteration:
     def policy_evaluation(self):
         """
         Evaluate current policy using iterative policy evaluation.
+        Handles stochastic transitions from gravitational dynamics.
 
         Updates self.V to be the value function for current policy.
 
@@ -58,22 +59,13 @@ class PolicyIteration:
                 # Get action from current policy
                 action = self.policy[state]
 
-                # Calculate new value - optimized for deterministic environment
-                # Directly compute next state instead of checking all states
-                row, col = self.env._state_to_pos(state)
+                # Calculate new value using stochastic transitions
+                new_v = 0.0
+                possible_states = self.env.get_possible_next_states(state, action)
 
-                if action == 0:  # up
-                    next_row, next_col = max(0, row - 1), col
-                elif action == 1:  # down
-                    next_row, next_col = min(self.env.grid_size - 1, row + 1), col
-                elif action == 2:  # left
-                    next_row, next_col = row, max(0, col - 1)
-                else:  # right
-                    next_row, next_col = row, min(self.env.grid_size - 1, col + 1)
-
-                next_state = self.env._pos_to_state((next_row, next_col))
-                reward = self.env.get_reward(next_state)
-                new_v = reward + self.gamma * self.V[next_state]
+                for next_state, prob in possible_states:
+                    reward = self.env.get_reward(next_state)
+                    new_v += prob * (reward + self.gamma * self.V[next_state])
 
                 self.V[state] = new_v
                 delta = max(delta, abs(v - new_v))
@@ -87,6 +79,7 @@ class PolicyIteration:
     def policy_improvement(self):
         """
         Improve policy by making it greedy with respect to current value function.
+        Handles stochastic transitions from gravitational dynamics.
 
         Returns:
             Boolean indicating if policy is stable (no changes made)
@@ -101,24 +94,16 @@ class PolicyIteration:
 
             old_action = self.policy[state]
 
-            # Find best action - optimized for deterministic environment
+            # Find best action using stochastic transitions
             action_values = np.zeros(self.env.n_actions)
-            row, col = self.env._state_to_pos(state)
 
             for action in range(self.env.n_actions):
-                # Directly compute next state for each action
-                if action == 0:  # up
-                    next_row, next_col = max(0, row - 1), col
-                elif action == 1:  # down
-                    next_row, next_col = min(self.env.grid_size - 1, row + 1), col
-                elif action == 2:  # left
-                    next_row, next_col = row, max(0, col - 1)
-                else:  # right
-                    next_row, next_col = row, min(self.env.grid_size - 1, col + 1)
+                # Calculate expected value for this action
+                possible_states = self.env.get_possible_next_states(state, action)
 
-                next_state = self.env._pos_to_state((next_row, next_col))
-                reward = self.env.get_reward(next_state)
-                action_values[action] = reward + self.gamma * self.V[next_state]
+                for next_state, prob in possible_states:
+                    reward = self.env.get_reward(next_state)
+                    action_values[action] += prob * (reward + self.gamma * self.V[next_state])
 
             # Update policy to best action
             best_action = np.argmax(action_values)
