@@ -130,7 +130,7 @@ class PolicyIteration:
 
         return policy_stable
 
-    def solve(self, max_iterations=100, verbose=True):
+    def solve(self, max_iterations=1000, verbose=True):
         """
         Run policy iteration to find optimal policy.
 
@@ -187,7 +187,7 @@ class PolicyIteration:
             'converged': False
         }
 
-    def evaluate_policy(self, num_episodes=100, max_steps=1000):
+    def evaluate_policy(self, num_episodes=1000, max_steps=1000):
         """
         Evaluate the learned policy by running episodes.
 
