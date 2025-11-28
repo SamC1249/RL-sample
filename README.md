@@ -420,3 +420,9 @@ If you use this environment in your research, please cite:
 ## Contact
 
 For questions or feedback, please open an issue on GitHub.
+
+## Branch Information
+gravityv2: Includes complex DQN + Newton Physics
+gravityv1: Simple gravity implementation
+v1
+v2

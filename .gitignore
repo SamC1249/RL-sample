@@ -64,3 +64,6 @@ temp/
 
 models/
 results/
+checkpoints/
+
+.venv/
