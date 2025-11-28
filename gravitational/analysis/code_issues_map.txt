@@ -1,0 +1,328 @@
+================================================================================
+CODE ISSUES MAP - Exact Locations of Problems
+================================================================================
+
+ISSUE #1: CRITICAL BUG - Terminal Condition Detection
+================================================================================
+File: gravitational/train.py
+Lines: 240-243
+
+Current Code:
+    238|            # Check terminal conditions
+    239|            if terminated:
+    240|                # Check if success or black hole death
+    241|                if reward == 0:  # Target planet reward
+    242|                    success = True
+    243|                elif reward == -100:  # Black hole reward
+    244|                    black_hole_death = True
+
+Problem:
+    - Variable 'reward' contains the STEP reward (gravity + thrust)
+    - Step reward is NEVER exactly 0 (it's a float from continuous calculations)
+    - Target planet bonus is 0, but that's ADDED to step reward
+    - Success is NEVER detected!
+
+Fix:
+    238|            # Check terminal conditions
+    239|            if terminated:
+    240|                # Check actual terminal reason using info dict
+    241|                if info['distance_to_target'] <= 2.0:
+    242|                    success = True
+    243|                elif info['distance_to_black_hole'] <= env.black_hole.event_horizon:
+    244|                    black_hole_death = True
+
+Alternative Fix (if you want to keep reward-based detection):
+    In gravitational_env.py step() method, add a terminal_reason to info dict:
+    
+    if self.target_planet.is_at_planet(self.agent_pos[0], self.agent_pos[1]):
+        terminated = True
+        info['terminal_reason'] = 'success'
+        reward += self.target_planet.reward
+    
+    Then in train.py:
+    if terminated:
+        if info.get('terminal_reason') == 'success':
+            success = True
+        elif info.get('terminal_reason') == 'black_hole':
+            black_hole_death = True
+
+
+================================================================================
+ISSUE #2: REWARD STRUCTURE - Gravity Dominates
+================================================================================
+File: gravitational/gravitational_env.py
+Lines: 191-224 (_compute_reward method)
+
+Current Code:
+    191|    def _compute_reward(self, thrust_direction: np.ndarray, thrust_magnitude: float,
+    192|                       gravity_vector: np.ndarray) -> float:
+    193|        """
+    194|        Compute reward: r = -(||g|| · (1 - cos θ)) + k*T
+    ...
+    204|        g_magnitude = np.linalg.norm(gravity_vector)
+    ...
+    216|            gravity_cost = g_magnitude * (1 - cos_theta)
+    ...
+    221|        thrust_reward = self.k * thrust_magnitude
+    222|
+    223|        reward = -gravity_cost + thrust_reward
+    224|        return reward
+
+Problem Analysis:
+    - Near black hole (mass=1e8, G=1e-3), at distance r=10:
+      ||g|| = G * m / r² = 1e-3 * 1e8 / 100 = 1,000
+    
+    - Gravity cost per step: 1,000 * (1 - cos θ)
+      Best case (perfect alignment): 0
+      Worst case (perpendicular): 1,000
+      Average case: ~500
+    
+    - Thrust reward per step: k * T = 0.1 * 1.0 = 0.1
+    
+    - Ratio: Gravity cost is 5,000x to 10,000x larger!
+
+Fix Option A - Normalize gravity cost:
+    def _compute_reward(self, thrust_direction, thrust_magnitude, gravity_vector):
+        g_magnitude = np.linalg.norm(gravity_vector)
+        
+        if g_magnitude > 1e-6:
+            g_direction = gravity_vector / g_magnitude
+            cos_theta = np.dot(thrust_direction, -g_direction)
+            # Normalize to [0, 1] range using tanh
+            gravity_cost = np.tanh(g_magnitude * (1 - cos_theta) / 100.0)
+        else:
+            gravity_cost = 0.0
+        
+        thrust_reward = 1.0 * thrust_magnitude  # Increased k to 1.0
+        reward = -gravity_cost + thrust_reward
+        return reward
+
+Fix Option B - Add reward shaping:
+    def _compute_reward(self, thrust_direction, thrust_magnitude, gravity_vector):
+        # Original gravity and thrust components (normalized)
+        g_magnitude = np.linalg.norm(gravity_vector)
+        if g_magnitude > 1e-6:
+            g_direction = gravity_vector / g_magnitude
+            cos_theta = np.dot(thrust_direction, -g_direction)
+            gravity_cost = np.tanh(g_magnitude * (1 - cos_theta) / 100.0)
+        else:
+            gravity_cost = 0.0
+        
+        thrust_reward = 1.0 * thrust_magnitude
+        
+        # NEW: Distance-based shaping
+        current_dist = self.target_planet.distance_to(
+            self.agent_pos[0], self.agent_pos[1]
+        )
+        
+        if self.prev_distance_to_target is not None:
+            # Reward for approaching target
+            distance_reward = (self.prev_distance_to_target - current_dist) * 5.0
+        else:
+            distance_reward = 0.0
+        
+        self.prev_distance_to_target = current_dist
+        
+        # NEW: Black hole danger penalty
+        black_hole_dist = self.black_hole.distance_to(
+            self.agent_pos[0], self.agent_pos[1]
+        )
+        if black_hole_dist < 20:
+            black_hole_penalty = -0.5 * (20 - black_hole_dist)
+        else:
+            black_hole_penalty = 0.0
+        
+        reward = -gravity_cost + thrust_reward + distance_reward + black_hole_penalty
+        return reward
+
+    # Don't forget to initialize in __init__:
+    def __init__(self, ...):
+        ...
+        self.prev_distance_to_target = None
+    
+    # And reset in reset():
+    def reset(self, ...):
+        ...
+        self.prev_distance_to_target = self.target_planet.distance_to(
+            self.agent_pos[0], self.agent_pos[1]
+        )
+
+
+================================================================================
+ISSUE #3: LIMITED STATE SPACE
+================================================================================
+File: gravitational/gravitational_env.py
+Lines: 72-77 (observation space definition)
+Lines: 308-310 (_get_observation method)
+
+Current Code:
+     72|        # Observation space: [x, y, vx, vy] (position and velocity)
+     73|        self.observation_space = spaces.Box(
+     74|            low=np.array([0, 0, -10, -10]),
+     75|            high=np.array([grid_size, grid_size, 10, 10]),
+     76|            dtype=np.float32
+     77|        )
+    ...
+    308|    def _get_observation(self) -> np.ndarray:
+    309|        """Get current observation [x, y, vx, vy]"""
+    310|        return np.concatenate([self.agent_pos, self.agent_vel])
+
+Problem:
+    Agent only knows WHERE it is and HOW FAST it's moving.
+    Agent does NOT know:
+    - Where the target is (distance, direction)
+    - Where the black hole is (danger!)
+    - How strong gravity is at current location
+    
+    This makes learning much harder!
+
+Fix:
+    # In __init__, update observation space:
+     72|        # Enhanced observation space
+     73|        self.observation_space = spaces.Box(
+     74|            low=np.array([0, 0, -10, -10, 0, -np.pi, 0, 0]),
+     75|            high=np.array([grid_size, grid_size, 10, 10, 150, np.pi, 150, 100]),
+     76|            dtype=np.float32
+     77|        )
+    
+    # Replace _get_observation method:
+    308|    def _get_observation(self) -> np.ndarray:
+    309|        """Enhanced observation with goal and danger information"""
+    310|        pos = self.agent_pos
+    311|        vel = self.agent_vel
+    312|        
+    313|        # Target information
+    314|        target_pos = np.array([self.target_planet.x, self.target_planet.y])
+    315|        to_target = target_pos - pos
+    316|        dist_to_target = np.linalg.norm(to_target)
+    317|        angle_to_target = np.arctan2(to_target[1], to_target[0])
+    318|        
+    319|        # Black hole information
+    320|        dist_to_black_hole = self.black_hole.distance_to(pos[0], pos[1])
+    321|        
+    322|        # Gravity information
+    323|        gravity = self._get_gravity_at_position(pos[0], pos[1])
+    324|        gravity_magnitude = np.linalg.norm(gravity)
+    325|        
+    326|        return np.concatenate([
+    327|            pos,                      # [x, y]
+    328|            vel,                      # [vx, vy]
+    329|            [dist_to_target],        # distance to goal
+    330|            [angle_to_target],       # direction to goal
+    331|            [dist_to_black_hole],    # distance to danger
+    332|            [gravity_magnitude]      # local gravity strength
+    333|        ])
+
+Also update agent initialization:
+    File: gravitational/train.py
+    Line: 329
+    
+    Change:
+        agent = DQNAgent(
+            state_dim=4,  # OLD
+            ...
+        )
+    
+    To:
+        agent = DQNAgent(
+            state_dim=8,  # NEW (matches enhanced observation)
+            ...
+        )
+
+
+================================================================================
+PARAMETER TUNING RECOMMENDATIONS
+================================================================================
+
+File: gravitational/gravitational_env.py
+Line: 56 (__init__ parameters)
+
+Current:
+    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 0.1, ...):
+
+Recommended:
+    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 1.0, ...):
+    
+    Change k from 0.1 to 1.0 (10x increase in thrust reward)
+
+
+File: gravitational/train.py
+Line: 337 (epsilon_decay parameter)
+
+Current:
+    agent = DQNAgent(
+        ...
+        epsilon_decay=0.995,
+        ...
+    )
+
+Consider:
+    epsilon_decay=0.997  # Slower decay for more exploration
+    
+    OR keep 0.995 if you want faster convergence after fixes
+
+
+File: gravitational/train.py
+Line: 339 (buffer_capacity parameter)
+
+Current:
+    buffer_capacity=10000
+
+Consider increasing:
+    buffer_capacity=50000  # More diverse experience replay
+    
+    Especially important after fixes when agent starts succeeding
+
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+After implementing fixes:
+
+1. Test environment changes:
+   □ Run: python gravitational_env.py
+   □ Verify observation shape is correct (should be 8 instead of 4)
+   □ Check reward values are reasonable (-1 to +1 range)
+
+2. Test training script:
+   □ Run: python train.py
+   □ Monitor first 100 episodes
+   □ Check that success is detected (should see "Success: True" in logs)
+   □ Verify rewards are not extremely negative
+
+3. Expected improvements:
+   □ Success rate > 0% (should reach 10-20% within 500 episodes)
+   □ Average reward > -100 (should be near 0 or positive)
+   □ Black hole rate < 50% (down from 69%)
+
+4. Run analysis again:
+   □ python gravitational/analysis/visualize_training.py
+   □ Compare new dashboard with old one
+   □ Success rate should show upward trend
+
+
+================================================================================
+SUMMARY OF CHANGES NEEDED
+================================================================================
+
+File: gravitational/train.py
+    - Lines 240-243: Fix terminal condition detection
+
+File: gravitational/gravitational_env.py
+    - Line 56: Change k from 0.1 to 1.0
+    - Lines 72-77: Update observation space (4D → 8D)
+    - Lines 191-224: Normalize rewards and add shaping
+    - Lines 308-310: Enhance observation with target/danger info
+    - Add self.prev_distance_to_target tracking
+
+File: gravitational/train.py (agent initialization)
+    - Line 329: Change state_dim from 4 to 8
+
+Total changes: 3 files, ~50 lines of code
+
+
+================================================================================
+END OF CODE ISSUES MAP
+================================================================================
+
