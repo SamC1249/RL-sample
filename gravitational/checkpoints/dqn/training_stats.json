@@ -1,0 +1,12 @@
+{
+  "total_episodes": 2000,
+  "avg_reward": -8290.755606714403,
+  "avg_reward_recent": -3464.3065216287937,
+  "avg_length": 450.181,
+  "avg_length_recent": 414.59,
+  "success_rate": 0.0,
+  "success_rate_recent": 0.0,
+  "black_hole_rate": 0.6745,
+  "black_hole_rate_recent": 0.69,
+  "current_epsilon": 0.01
+}
