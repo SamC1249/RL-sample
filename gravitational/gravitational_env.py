@@ -53,12 +53,12 @@ class GravitationalDynamicsEnv(gym.Env):
 
     metadata = {'render_modes': ['human', 'rgb_array'], 'render_fps': 10}
 
-    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 0.1, render_mode=None):
+    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 1.0, render_mode=None):
         super().__init__()
 
         self.grid_size = grid_size
         self.G = G  # Gravitational constant
-        self.k = k  # Thrust reward coefficient
+        self.k = k  # Thrust reward coefficient (increased from 0.1 to 1.0)
         self.render_mode = render_mode
 
         # Action space: [direction (0-3), thrust magnitude (0-1)]
@@ -191,7 +191,9 @@ class GravitationalDynamicsEnv(gym.Env):
     def _compute_reward(self, thrust_direction: np.ndarray, thrust_magnitude: float,
                        gravity_vector: np.ndarray) -> float:
         """
-        Compute reward: r = -(||g|| · (1 - cos θ)) + k*T
+        Compute reward: r = -tanh(||g|| · (1 - cos θ) / 100) + k*T
+        
+        Normalized gravity cost to prevent domination over thrust reward.
 
         Args:
             thrust_direction: Unit vector of thrust direction
@@ -199,7 +201,7 @@ class GravitationalDynamicsEnv(gym.Env):
             gravity_vector: Local gravity vector
 
         Returns:
-            reward: Float reward value
+            reward: Float reward value in range approximately [-1, 1]
         """
         g_magnitude = np.linalg.norm(gravity_vector)
 
@@ -212,12 +214,14 @@ class GravitationalDynamicsEnv(gym.Env):
             # Note: We negate gravity direction because gravity points inward
             cos_theta = np.dot(thrust_direction, -g_direction)
 
-            # Gravity cost: penalize when not opposing gravity
-            gravity_cost = g_magnitude * (1 - cos_theta)
+            # Gravity cost: normalized using tanh to keep in [0, 1] range
+            # Divide by 100 to scale the large gravity values before tanh
+            raw_gravity_cost = g_magnitude * (1 - cos_theta)
+            gravity_cost = np.tanh(raw_gravity_cost / 100.0)
         else:
             gravity_cost = 0.0
 
-        # Thrust reward: small positive for using thrust
+        # Thrust reward: positive for using thrust (k=1.0 now)
         thrust_reward = self.k * thrust_magnitude
 
         reward = -gravity_cost + thrust_reward
@@ -285,15 +289,18 @@ class GravitationalDynamicsEnv(gym.Env):
         # Check terminal conditions
         terminated = False
         truncated = False
+        terminal_reason = None
 
         # Check if agent reached target planet
         if self.target_planet.is_at_planet(self.agent_pos[0], self.agent_pos[1]):
             terminated = True
+            terminal_reason = 'success'
             reward += self.target_planet.reward  # +0 for reaching target
 
         # Check if agent entered black hole event horizon
         elif self.black_hole.is_inside_event_horizon(self.agent_pos[0], self.agent_pos[1]):
             terminated = True
+            terminal_reason = 'black_hole'
             reward = self.black_hole.reward  # -100 for black hole
 
         # Check if max steps reached
@@ -302,6 +309,10 @@ class GravitationalDynamicsEnv(gym.Env):
 
         obs = self._get_observation()
         info = self._get_info()
+        
+        # Add terminal reason to info for proper success detection
+        if terminal_reason is not None:
+            info['terminal_reason'] = terminal_reason
 
         return obs, reward, terminated, truncated, info
 

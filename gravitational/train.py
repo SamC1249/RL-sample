@@ -236,10 +236,10 @@ def train_agent(
 
             # Check terminal conditions
             if terminated:
-                # Check if success or black hole death
-                if reward == 0:  # Target planet reward
+                # Check terminal reason from info dict (FIXED: was checking reward == 0 which never happens)
+                if info.get('terminal_reason') == 'success':
                     success = True
-                elif reward == -100:  # Black hole reward
+                elif info.get('terminal_reason') == 'black_hole':
                     black_hole_death = True
                 break
 
