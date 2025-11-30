@@ -165,18 +165,42 @@ def train_ppo_sb3(
     
     # Train
     print("\nStarting training...\n")
-    model.learn(
-        total_timesteps=total_timesteps,
-        callback=[progress_callback, checkpoint_callback, eval_callback],
-        log_interval=10,
-        progress_bar=True
-    )
+    try:
+        model.learn(
+            total_timesteps=total_timesteps,
+            callback=[progress_callback, checkpoint_callback, eval_callback],
+            log_interval=10,
+            progress_bar=True
+        )
+    except KeyboardInterrupt:
+        print("\n\n" + "="*80)
+        print("⚠️  Training interrupted by user!")
+        print("="*80)
+        # Save the model even if interrupted
+        interrupted_path = os.path.join(save_dir, "interrupted_model")
+        model.save(interrupted_path)
+        print(f"✓ Model saved to: {interrupted_path}.zip")
+        print("="*80 + "\n")
+        
+        # Create partial stats
+        stats = {
+            'total_timesteps': int(model.num_timesteps),
+            'total_episodes': int(progress_callback.episode_count),
+            'success_count': int(progress_callback.success_count),
+            'black_hole_count': int(progress_callback.black_hole_count),
+            'success_rate': float(progress_callback.success_count / max(1, progress_callback.episode_count)),
+            'black_hole_rate': float(progress_callback.black_hole_count / max(1, progress_callback.episode_count)),
+            'avg_episode_reward': float(np.mean(progress_callback.episode_rewards)) if progress_callback.episode_rewards else 0.0,
+            'avg_episode_length': float(np.mean(progress_callback.episode_lengths)) if progress_callback.episode_lengths else 0.0
+        }
+        
+        return model, stats
     
     # Save final model
     final_path = os.path.join(save_dir, "final_model")
     model.save(final_path)
     print(f"\n{'='*80}")
-    print(f"Training complete! Final model saved to: {final_path}")
+    print(f"Training complete! Final model saved to: {final_path}.zip")
     print(f"{'='*80}")
     
     # Save statistics (convert numpy types to native Python types for JSON)
@@ -205,6 +229,18 @@ def train_ppo_sb3(
     print(f"  tensorboard --logdir {log_dir}")
     
     return model, stats
+
+
+def train_ppo_sb3_with_interrupt_handling(*args, **kwargs):
+    """
+    Wrapper for train_ppo_sb3 that handles KeyboardInterrupt gracefully.
+    Returns the model even if training is interrupted.
+    """
+    try:
+        return train_ppo_sb3(*args, **kwargs)
+    except KeyboardInterrupt:
+        # Re-raise to be handled by caller
+        raise
 
 
 def evaluate_model(model_path: str, n_episodes: int = 100, render: bool = False):

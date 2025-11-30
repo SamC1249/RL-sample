@@ -53,13 +53,19 @@ class GravitationalDynamicsEnv(gym.Env):
 
     metadata = {'render_modes': ['human', 'rgb_array'], 'render_fps': 10}
 
-    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 1.0, render_mode=None):
+    def __init__(self, grid_size: int = 100, G: float = 1e-3, k: float = 1.0, 
+                 max_fuel: float = 100.0, fuel_consumption_rate: float = 0.1, render_mode=None):
         super().__init__()
 
         self.grid_size = grid_size
         self.G = G  # Gravitational constant
-        self.k = k  # Thrust reward coefficient (increased from 0.1 to 1.0)
+        self.k = k  # Thrust cost coefficient (negative for fuel penalty)
         self.render_mode = render_mode
+        
+        # Fuel parameters
+        self.max_fuel = max_fuel
+        self.fuel_consumption_rate = fuel_consumption_rate  # Fuel used per unit thrust
+        self.fuel = max_fuel  # Current fuel
 
         # Action space: [direction (0-3), thrust magnitude (0-1)]
         # Direction: 0=up, 1=right, 2=down, 3=left
@@ -69,10 +75,10 @@ class GravitationalDynamicsEnv(gym.Env):
             dtype=np.float32
         )
 
-        # Observation space: [x, y, vx, vy] (position and velocity)
+        # Observation space: [x, y, vx, vy, fuel] (position, velocity, and fuel)
         self.observation_space = spaces.Box(
-            low=np.array([0, 0, -10, -10]),
-            high=np.array([grid_size, grid_size, 10, 10]),
+            low=np.array([0, 0, -10, -10, 0]),
+            high=np.array([grid_size, grid_size, 10, 10, max_fuel]),
             dtype=np.float32
         )
 
@@ -119,12 +125,12 @@ class GravitationalDynamicsEnv(gym.Env):
             )
             self.celestial_bodies.append(planet)
 
-        # 1 Target planet (mass: 1e5, reward: 0)
+        # 1 Target planet (mass: 1e5, reward: 100.0)
         self.target_planet = CelestialBody(
             x=85.0, y=85.0,
             mass=1e5,
             body_type='target_planet',
-            reward=0.0
+            reward=100.0
         )
         self.celestial_bodies.append(self.target_planet)
 
@@ -181,9 +187,14 @@ class GravitationalDynamicsEnv(gym.Env):
     def _compute_reward(self, thrust_direction: np.ndarray, thrust_magnitude: float,
                        gravity_vector: np.ndarray) -> float:
         """
-        Compute reward: r = -tanh(||g|| · (1 - cos θ) / 100) + k*T
+        Compute reward with fuel constraint.
         
-        Normalized gravity cost to prevent domination over thrust reward.
+        New reward: r = -gravity_cost - fuel_cost
+        
+        Changes from original:
+        - Thrust is now a COST (penalty), not reward
+        - Encourages efficient fuel use
+        - Still penalizes poor gravity management
 
         Args:
             thrust_direction: Unit vector of thrust direction
@@ -191,7 +202,7 @@ class GravitationalDynamicsEnv(gym.Env):
             gravity_vector: Local gravity vector
 
         Returns:
-            reward: Float reward value in range approximately [-1, 1]
+            reward: Float reward value
         """
         g_magnitude = np.linalg.norm(gravity_vector)
 
@@ -211,10 +222,11 @@ class GravitationalDynamicsEnv(gym.Env):
         else:
             gravity_cost = 0.0
 
-        # Thrust reward: positive for using thrust (k=1.0 now)
-        thrust_reward = self.k * thrust_magnitude
+        # Fuel cost: penalty for using fuel (negative, not positive!)
+        # This encourages efficient fuel use
+        fuel_cost = self.k * thrust_magnitude  # k should be negative or small
 
-        reward = -gravity_cost + thrust_reward
+        reward = -gravity_cost - fuel_cost
         return reward
 
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
@@ -224,6 +236,7 @@ class GravitationalDynamicsEnv(gym.Env):
         # Reset agent to starting position (avoid starting near celestial bodies)
         self.agent_pos = np.array([10.0, 10.0], dtype=np.float32)
         self.agent_vel = np.array([0.0, 0.0], dtype=np.float32)
+        self.fuel = self.max_fuel  # Reset fuel to max
         self.steps = 0
 
         obs = self._get_observation()
@@ -245,6 +258,17 @@ class GravitationalDynamicsEnv(gym.Env):
         # Parse action
         direction_idx = int(np.clip(action[0], 0, 3))
         thrust_magnitude = np.clip(action[1], 0.0, 1.0)
+        
+        # Check fuel and limit thrust if insufficient
+        fuel_needed = thrust_magnitude * self.fuel_consumption_rate
+        if self.fuel < fuel_needed:
+            # Not enough fuel - can only use what's available
+            thrust_magnitude = self.fuel / self.fuel_consumption_rate
+            fuel_needed = self.fuel
+        
+        # Consume fuel
+        self.fuel -= fuel_needed
+        self.fuel = max(0.0, self.fuel)  # Ensure non-negative
 
         # Direction vectors: up, right, down, left
         direction_vectors = [
@@ -285,13 +309,20 @@ class GravitationalDynamicsEnv(gym.Env):
         if self.target_planet.is_at_planet(self.agent_pos[0], self.agent_pos[1]):
             terminated = True
             terminal_reason = 'success'
-            reward += self.target_planet.reward  # +0 for reaching target
+            reward += self.target_planet.reward  # +100 for reaching target!
 
         # Check if agent entered black hole event horizon
         elif self.black_hole.is_inside_event_horizon(self.agent_pos[0], self.agent_pos[1]):
             terminated = True
             terminal_reason = 'black_hole'
             reward = self.black_hole.reward  # -100 for black hole
+        
+        # Check if out of fuel and can't reach target (optional failure condition)
+        # Uncomment if you want running out of fuel to end episode
+        # elif self.fuel <= 0:
+        #     terminated = True
+        #     terminal_reason = 'out_of_fuel'
+        #     reward -= 10.0  # Small penalty for running out
 
         # Check if max steps reached
         if self.steps >= self.max_steps:
@@ -307,14 +338,16 @@ class GravitationalDynamicsEnv(gym.Env):
         return obs, reward, terminated, truncated, info
 
     def _get_observation(self) -> np.ndarray:
-        """Get current observation [x, y, vx, vy]"""
-        return np.concatenate([self.agent_pos, self.agent_vel])
+        """Get current observation [x, y, vx, vy, fuel]"""
+        return np.concatenate([self.agent_pos, self.agent_vel, [self.fuel]])
 
     def _get_info(self) -> Dict:
         """Get additional information"""
         return {
             'agent_position': self.agent_pos.copy(),
             'agent_velocity': self.agent_vel.copy(),
+            'fuel': self.fuel,
+            'fuel_percentage': (self.fuel / self.max_fuel) * 100,
             'steps': self.steps,
             'distance_to_target': self.target_planet.distance_to(
                 self.agent_pos[0], self.agent_pos[1]

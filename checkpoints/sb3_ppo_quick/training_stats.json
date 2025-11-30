@@ -1,8 +1,10 @@
 {
-  "total_timesteps": 500000,
-  "total_episodes": 945,
-  "success_count": 126,
-  "black_hole_count": 585,
-  "success_rate": 0.13333333333333333,
-  "black_hole_rate": 0.6190476190476191,
-  "avg_episode_reward": 
+  "total_timesteps": 2000000,
+  "total_episodes": 28375,
+  "success_count": 27570,
+  "black_hole_count": 652,
+  "success_rate": 0.9716299559471365,
+  "black_hole_rate": 0.022977973568281938,
+  "avg_episode_reward": 85.02699279785156,
+  "avg_episode_length": 70.51587665198238
+}
